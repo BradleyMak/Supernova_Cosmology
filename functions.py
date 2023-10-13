@@ -100,3 +100,19 @@ def automated_curve_fitting(xval, yval, yerr, model_funct, initial):
         print('optimised parameter[{}] = {} +/- {}'.format(i, popt[i], popt_errs[i]))
     
     return popt, popt_errs
+
+def mag_model(redshift, L_peak, H_0, m_0, omega_lambda):
+    flux_predicted = L_peak/(4*np.pi*(1+redshift)**2*(integrate_array(comoving_distance_integrand, np.zeros(len(redshift)), redshift, args=(H_0, omega_lambda)))**2) #W/m^2/Ang
+    flux_predicted = flux_predicted * 10**7 * 10**-4 #erg/s/cm^2/Angstrom
+    mag_predicted = m_0 - 2.5*np.log10(flux_predicted) 
+    return mag_predicted
+
+def comoving_distance_integrand(z, H_0, omega_lambda):
+    return ((3*10**8)/(H_0*((1-(1+z)**3)*omega_lambda + (1+z)**3)**0.5))
+
+def integrate_array(function, lower_limit_array, upper_limit_array, args):
+    output = []
+    assert len(lower_limit_array) == len(upper_limit_array)
+    for i in range(0, len(upper_limit_array)):
+        output.append(scipy.integrate.quad(function, lower_limit_array[i], upper_limit_array[i], args = args)[0])
+    return np.array(output)
