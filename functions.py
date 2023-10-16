@@ -11,7 +11,7 @@ def read_data(filename):
     Returns:
         _array_: returns arrays containing name, redshift, effective peak magnitude, peak magnitude error data.
     """
-    alldata = np.loadtxt(filename, dtype='str', comments='#')
+    alldata = np.loadtxt(filename, dtype='str', comments='#') #2D matrix
     name = alldata[:, 0]
     redshift = np.array(alldata[:, 1], dtype = float)
     eff_peak_mag = np.array(alldata[:, 2], dtype = float)
@@ -28,12 +28,6 @@ def get_flux(eff_peak_mag, mag_err, m_0):
 def get_comoving_distance_low_z(redshift, H_0):
     comoving_distance = (3*10**8*redshift/H_0) #in m
     return comoving_distance
-
-#function to calculate the peak luminosity, and its respective error, from peak flux and redshift.
-"""def get_peak_luminosity(comoving_distance, redshift, peak_flux, peak_flux_err):
-    L_peak = peak_flux*4*np.pi*(1+redshift)**2*comoving_distance**2
-    L_peak_err = (peak_flux+peak_flux_err)*4*np.pi*(1+redshift)**2*comoving_distance**2 - L_peak
-    return L_peak, L_peak_err"""
 
 #function to calculate the luminosity distance and its error from peak luminosity and flux.
 def get_luminosity_distance(redshift, comoving_distance):
@@ -116,3 +110,50 @@ def integrate_array(function, lower_limit_array, upper_limit_array, args):
     for i in range(0, len(upper_limit_array)):
         output.append(scipy.integrate.quad(function, lower_limit_array[i], upper_limit_array[i], args = args)[0])
     return np.array(output)
+
+def find_omega_lambda_and_error(x, actual, error, L_peak, H_0, m_0):
+    no_of_values = 10000
+    omega_lambdas = np.linspace(0, 1.1, no_of_values) #trial values for omega_lambda,0
+    chi_squared = []
+    for omega_lambda in omega_lambdas:
+        predicted = mag_model(x, L_peak, H_0, m_0, omega_lambda)
+        chi_squared.append(np.sum((actual-predicted)**2/error**2))
+
+    min_index = np.argmin(chi_squared)
+    omega_lambda = omega_lambdas[min_index]
+    min_chisq = chi_squared[min_index]
+    counter = 0
+    errors = []
+    try:
+        while True:
+            if chi_squared[min_index+counter]-min_chisq > 1:
+                errors.append(omega_lambdas[min_index+counter]-omega_lambda)
+                break
+            else:
+                counter += 1
+    except:
+        print('Error calculation exceeds maximum trial value!')
+
+    counter = 0
+    try:
+        while True:
+            if chi_squared[min_index-counter]-min_chisq > 1:
+                errors.append(omega_lambdas[min_index-counter]-omega_lambda)
+                break
+            else:
+                counter += 1
+    except:
+        print('Error calculation exceeds minimum trial value!')
+
+    omega_lambda = np.round(omega_lambdas[min_index], 3)
+    omega_lambda_err = np.round(np.max(errors), 3)
+
+    plt.scatter(omega_lambdas, chi_squared, marker = 'x', s = 2)
+    plt.xlabel('$Ω_{Λ,0}$', fontsize = 14)
+    plt.ylabel('$χ^2$', fontsize = 14)
+    plt.axvline(x = omega_lambda, color = 'black', linestyle = 'dashed')
+    plt.axvline(x = omega_lambda + errors[0], color = 'grey', linestyle = 'dotted'); plt.axvline(x = omega_lambda + errors[1], color = 'grey', linestyle = 'dotted')
+    plt.annotate('$Ω_{Λ,0}$' + f'= {omega_lambda} +/- {omega_lambda_err}', xycoords = 'axes fraction', xy = (0.05, 0.9), backgroundcolor = 'white')
+    plt.show()
+
+    return omega_lambda, omega_lambda_err
