@@ -1,6 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
+import scipy.stats as stats
+import math
+
+c = 299792458 #m/s
 
 #function to read data from txt file
 def read_data(filename):
@@ -26,7 +30,7 @@ def get_flux(eff_peak_mag, mag_err, m_0):
 
 #function to calculate the comoving distance for a given redshift (approximation for z<0.1)
 def get_comoving_distance_low_z(redshift, H_0):
-    comoving_distance = (3*10**8*redshift/H_0) #in m
+    comoving_distance = (c*redshift/H_0) #in m
     return comoving_distance
 
 #function to calculate the luminosity distance and its error from peak luminosity and flux.
@@ -34,14 +38,19 @@ def get_luminosity_distance(redshift, comoving_distance):
     d_L = (1+redshift)*comoving_distance
     return d_L
 
+def get_norm_residuals(model_params, model_funct, x_data, y_data, y_err):
+    norm_residuals = []
+    for i in range(0,len(x_data)):
+        norm_residual = (y_data[i] - (model_funct(x_data[i], model_params)))/y_err[i]
+        norm_residuals.append(norm_residual)
+    norm_residuals = np.array(norm_residuals)
+    return norm_residuals
+
 def chisq(model_params, model_funct, x_data, y_data, y_err):
-        chisqval=[]
-        for i in range(len(x_data)):
-            chisqval.append(((y_data[i] - model_funct(x_data[i], *model_params))/y_err[i])**2)
-            # the asterisk (*) before 'model_params' here unpacks the model parameters
+        chisqval = (get_norm_residuals(model_params, model_funct, x_data, y_data, y_err))**2
         return chisqval
 
-def automated_curve_fitting(xval, yval, yerr, model_funct, initial):
+def automated_curve_fitting(xval, yval, yerr, model_funct, initial, xlabel, ylabel):
     #order arrays in ascending order
     order = np.argsort(xval)
     xval = xval[order]; yval = yval[order]; yerr = yerr[order]
@@ -61,20 +70,21 @@ def automated_curve_fitting(xval, yval, yerr, model_funct, initial):
     print('Covariance matrix = \n', cov)
 
     plt.figure()
-    plt.errorbar(xval, yval, yerr=yerr, marker='o', linestyle='None')
+    plt.errorbar(xval, yval, yerr=yerr, marker='o', linestyle='None', capsize = 3, color = 'black')
 
     # Generate best fit line using model function and best fit parameters, and add to plot. 
     plt.plot(xval, 
                 model_funct(xval, *popt),  # NOTE that now we need to 'unpack' our optimised parameters with '*'.
-                'k', label='optimised')
+                'k', label='optimised', color = 'red')
 
     # We can also plot a calculation based on our initial conditions to ensure that something has actually happened!
     plt.plot(xval, 
                 model_funct(xval, *initial), # We need to 'unpack' our initial parameters with '*'.
-                'r', label='initial')
+                'r', label='initial', color = 'black')
     plt.legend()
     plt.show()
 
+    norm_residuals = get_norm_residuals(*popt, model_funct, xval, yval, yerr)
     chisq_min = np.sum(chisq(popt, model_funct, xval, yval, yerr))
     print('chi^2_min = {}'.format(chisq_min))
     chisq_reduced = chisq_min/deg_freedom
@@ -82,11 +92,42 @@ def automated_curve_fitting(xval, yval, yerr, model_funct, initial):
     P = scipy.stats.chi2.sf(chisq_min, deg_freedom)
     print('$P(chi^2_min, DoF)$ = {}'.format(P))
 
-    plt.figure()
-    plt.errorbar(xval, yval, yerr=yerr, marker='o', linestyle='None')
-
+    #plotting final graph with data overlaid by best-fit curve, with normalised residuals and their probability density subplots.
+    plt.figure(1)
+    plt.figure(1).add_axes((0,0,0.8,0.8))
+    plt.errorbar(xval, yval, yerr=yerr, marker='o', linestyle='None', color = 'black', capsize = 3)
     smooth_xval = np.linspace(xval[0], xval[-1], 1001)
-    plt.plot(smooth_xval, model_funct(smooth_xval, *popt), color = 'black')
+    plt.plot(smooth_xval, model_funct(smooth_xval, *popt), color = 'red')
+    plt.annotate('$χ^2_{min}$' + f'= {np.round(chisq_min, 2)}' + '\n' 
+                 + f'DoF = {deg_freedom}' + '\n'
+                 + '$χ^2_{red}$' + f'= {np.round(chisq_reduced, 2)}' + '\n' 
+                 + f'P = {np.round(P, 3)}', 
+                 xycoords = 'axes fraction', xy = (0.7, 0.07), backgroundcolor = 'white')
+    plt.ylabel(ylabel, weight = 'bold')
+    plt.gca().set_xticks([])
+
+    plt.figure(1).add_axes((0,-0.25,0.8,0.25))
+    plt.scatter(xval, norm_residuals, color='red', marker = 'd')
+    plt.ylabel("""Normalised
+Residuals""", weight = 'bold')
+    plt.ylim(-3, 3)
+    plt.axhline(y = 0, linestyle = '--', color = 'black')
+    plt.axhline(y = 1, linestyle = ':', color = 'dimgrey'); plt.axhline(y = -1, linestyle = ':', color = 'dimgrey')
+    plt.axhline(y = 2, linestyle = ':', color = 'lightgrey'); plt.axhline(y = -2, linestyle = ':', color = 'lightgrey')
+    plt.xlabel(xlabel, weight = 'bold')
+
+    plt.figure(1).add_axes((0.8,-0.25,0.15,0.25))
+    plt.hist(norm_residuals, bins=np.arange(-3, 3, 0.5), alpha = 0.5, density = True, orientation = 'horizontal')
+    plt.xticks([0.2,0.4], fontsize = 13)
+    mu = 0; variance = 1
+    sigma = math.sqrt(variance)
+    y = np.linspace(mu - 3*sigma, mu + 3*sigma, 100)
+    plt.plot(stats.norm.pdf(y, mu, sigma), y, color = 'blue')
+    plt.xlabel("""Probability
+Density""", fontsize = 14, weight = 'bold')
+    plt.gca().set_yticks([])
+    plt.gca().invert_yaxis()
+
     plt.show()
 
     popt_errs = np.sqrt(np.diag(cov))
@@ -102,7 +143,7 @@ def mag_model(redshift, L_peak, H_0, m_0, omega_lambda):
     return mag_predicted
 
 def comoving_distance_integrand(z, H_0, omega_lambda):
-    return ((3*10**8)/(H_0*((1-(1+z)**3)*omega_lambda + (1+z)**3)**0.5))
+    return ((c)/(H_0*((1-(1+z)**3)*omega_lambda + (1+z)**3)**0.5))
 
 def integrate_array(function, lower_limit_array, upper_limit_array, args):
     output = []
@@ -122,6 +163,7 @@ def find_omega_lambda_and_error(x, actual, error, L_peak, H_0, m_0):
     min_index = np.argmin(chi_squared)
     omega_lambda = omega_lambdas[min_index]
     min_chisq = chi_squared[min_index]
+    print(min_chisq)
     counter = 0
     errors = []
     try:
@@ -148,9 +190,9 @@ def find_omega_lambda_and_error(x, actual, error, L_peak, H_0, m_0):
     omega_lambda = np.round(omega_lambdas[min_index], 3)
     omega_lambda_err = np.round(np.max(errors), 3)
 
-    plt.scatter(omega_lambdas, chi_squared, marker = 'x', s = 2)
-    plt.xlabel('$Ω_{Λ,0}$', fontsize = 14)
-    plt.ylabel('$χ^2$', fontsize = 14)
+    plt.scatter(omega_lambdas, chi_squared, marker = 'x', s = 2, color = 'red')
+    plt.xlabel('$Ω_{Λ,0}$')
+    plt.ylabel('$χ^2$')
     plt.axvline(x = omega_lambda, color = 'black', linestyle = 'dashed')
     plt.axvline(x = omega_lambda + errors[0], color = 'grey', linestyle = 'dotted'); plt.axvline(x = omega_lambda + errors[1], color = 'grey', linestyle = 'dotted')
     plt.annotate('$Ω_{Λ,0}$' + f'= {omega_lambda} +/- {omega_lambda_err}', xycoords = 'axes fraction', xy = (0.05, 0.9), backgroundcolor = 'white')
