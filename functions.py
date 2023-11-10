@@ -236,7 +236,7 @@ def find_omega_lambda_and_error(x, actual, error, L_peak, H_0, m_0):
 
 def get_transverse_comoving_distance(redshift, H_0, k, omega_lambda0, omega_M0):
     try:
-        r_c = integrate_array(comoving_distance_integrand, np.zeros(len(redshift).tolist()), redshift, args=(H_0, k, omega_lambda0, omega_M0))
+        r_c = integrate_array(comoving_distance_integrand, np.zeros(len(redshift.tolist())), redshift, args=(H_0, k, omega_lambda0, omega_M0))
     except:
         r_c = integrate_array(comoving_distance_integrand, [0], [redshift], args=(H_0, k, omega_lambda0, omega_M0))
     if k == 0:
