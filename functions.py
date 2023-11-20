@@ -16,11 +16,13 @@ def read_data(filename):
         _array_: returns arrays containing name, redshift, effective peak magnitude, peak magnitude error data.
     """
     alldata = np.loadtxt(filename, dtype='str', comments='#') #2D matrix
-    name = alldata[:, 0]
-    redshift = np.array(alldata[:, 1], dtype = float)
-    eff_peak_mag = np.array(alldata[:, 2], dtype = float)
-    mag_err = np.array(alldata[:, 3], dtype = float)
-    return name, redshift, eff_peak_mag, mag_err
+    columns = []
+    for i in range(len(alldata[0])):
+        try:
+            columns.append(np.array(alldata[:, i], dtype = float))
+        except:
+            columns.append(alldata[:, i])
+    return columns
 
 
 
