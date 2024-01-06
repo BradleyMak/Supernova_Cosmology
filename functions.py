@@ -76,7 +76,7 @@ def chisq(model_params, model_funct, x_data, y_data, y_err):
 #a function to carry out an automated chi-squared fitting - fits a given model function with unknown parameters to a given dataset
 #by varying the unknown parameters in such a way as to minimise the chi-squared statistic.
 #The value of the unknown parameters and their errors, as well as a plot showing the raw data, best fit line, and the normalised residuals and their distribution is also returned.
-def automated_curve_fitting(xval, yval, yerr, model_funct, initial, xlabel, ylabel):
+def automated_curve_fitting(xval, yval, yerr, model_funct, initial, xlabel, ylabel, contour_plot = False, parameter_labels = ['1', '2']):
     #order arrays in ascending order
     order = np.argsort(xval)
     xval = xval[order]; yval = yval[order]; yerr = yerr[order]
@@ -133,10 +133,11 @@ def automated_curve_fitting(xval, yval, yerr, model_funct, initial, xlabel, ylab
     plt.plot(smooth_xval, model_funct(smooth_xval, *popt), color = 'red')
     plt.annotate('$χ^2_{min}$' + f'= {np.round(chisq_min, 2)}' + '\n' 
                  + f'DoF = {deg_freedom}' + '\n'
-                 + '$χ^2_{red}$' + f'= {np.round(chisq_reduced, 2)}' + '\n' 
-                 + f'P = {np.round(P, 3)}', 
-                 xycoords = 'axes fraction', xy = (0.65, 0.07), backgroundcolor = 'white')
+                 + '$χ^2_{red}$' + f'= {np.round(chisq_reduced, 2)}' ,
+#                 + f'P = {np.round(P, 3)}', 
+                 xycoords = 'axes fraction', xy = (0.04, 0.75), backgroundcolor = 'white')
     plt.ylabel(ylabel, weight = 'bold')
+    #plt.ylim(14.1, 19.7)
     plt.gca().set_xticks([])
 
     #normalised residual plot
@@ -154,7 +155,7 @@ Residuals""", weight = 'bold')
     plt.figure(1).add_axes((0.8,-0.25,0.15,0.25))
     plt.hist(norm_residuals, bins=np.arange(-100, 100, 0.5), alpha = 0.5, density = True, orientation = 'horizontal')
     plt.ylim(3, -3)
-    plt.xticks([0.2,0.4], fontsize = 13)
+    plt.xticks([0.2,0.4], fontsize = 16)
     mu = 0; variance = 1
     sigma = math.sqrt(variance)
     y = np.linspace(mu - 3*sigma, mu + 3*sigma, 100)
@@ -166,14 +167,15 @@ Density""", fontsize = 14, weight = 'bold')
 
     plt.show()
 
-    """#produce chisq contour plot
-    if len(initial) == 2:
-        a_low, a_high = popt[0]-0.5, popt[0]+0.5
-        b_low, b_high = popt[1]-0.5, popt[1]+0.5
+    #produce chisq contour plot - only do this if we are fitting 2 parameters (2D plot).
+    if contour_plot == True and len(initial) == 2:
+        #upper and lower limits for contour plot
+        a_low, a_high = popt[0]-0.25, popt[0]+0.25
+        b_low, b_high = popt[1]-0.25, popt[1]+0.25
 
         # Generate grid and data
-        da = (a_high - a_low)/100.0
-        db = (b_high - b_low)/100.0
+        da = (a_high - a_low)/60.0
+        db = (b_high - b_low)/60.0
         a_axis = np.arange(a_low, a_high, da)
         b_axis = np.arange(b_low, b_high, db)
         plot_data = np.zeros((len(a_axis), len(b_axis)))
@@ -186,11 +188,11 @@ Density""", fontsize = 14, weight = 'bold')
         # Contour levels to plot - delta chi-squared of 1, 4 & 9 correspond to 1, 2 & 3 standard deviations
         levels = [1, 4, 9]
         C_im = plt.contour(X, Y, contour_data, levels = levels, colors='b', origin = 'lower')
-        plt.clabel(C_im, levels, fontsize=12, inline=1, fmt=r'$\chi^2 = \chi^2_{min}+%1.0f$') 
+        plt.clabel(C_im, levels, fontsize=10, inline=1, fmt=r'$\chi^2 = \chi^2_{min}+%1.0f$') 
 
         # Axis labels
-        plt.xlabel('a (units?)')
-        plt.ylabel('b (units?)')
+        plt.xlabel(parameter_labels[0])
+        plt.ylabel(parameter_labels[1])
 
         # This allows you to modify the tick markers to assess the errors from the chi-squared contour plots.
         #xtick_spacing = 5
@@ -203,7 +205,7 @@ Density""", fontsize = 14, weight = 'bold')
         plt.plot(popt[0], popt[1], 'ro')
         plt.plot((popt[0], popt[0]), (b_low, popt[1]), linestyle='--', color='r')
         plt.plot((a_low, popt[0]), (popt[1], popt[1]), linestyle='--', color='r')
-        plt.show()"""
+        plt.show()
 
     #calculates errors on parameters by diagonalising the covariance matrix and square rooting the disgonal elements. These square rooted diagonal elements are the errors on the best fit parameters.
     #NOTE: this covariance matrix takes any correlation between parameter errors into account.
@@ -226,8 +228,15 @@ def mag_model(redshift, L_peak, H_0, m_0, omega_lambda0, omega_M0):
 
 
 #the integrand in the comoving distance integral.
-def comoving_distance_integrand(z, H_0, omega_lambda0, omega_M0):
-    return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0)-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
+def comoving_distance_integrand(z, H_0, omega_lambda0, omega_M0, w_model = -1, w_0 = -1, w_a = 1):
+    if w_model == 'asymptotic':
+        return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0+w_a))*np.exp(-3*w_a*z/(1+z)))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
+    if w_model == 'linear':
+        return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0+w_a*z)))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
+    if w_model == 'logarithmic':
+        return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0+w_a*np.log(1+z))))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
+    else:
+        return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_model)))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
 
 
 
@@ -295,16 +304,21 @@ def find_omega_lambda_and_error(x, actual, error, L_peak, H_0, m_0):
         print('Error calculation exceeds minimum trial value!')
 
     #rounding value and error to 3d.p. Error is taken to be the maximum of the error in the positive and negative directions.
-    omega_lambda = np.round(omega_lambdas[min_index], 3)
-    omega_lambda_err = np.round(np.max(errors), 3)
+    omega_lambda = np.round(omega_lambdas[min_index], 2)
+    omega_lambda_err = np.round(np.max(errors), 2)
 
     #plotting chisq values against omega_lambda,0 trial values with vertical lines to indicate the positions of minimum chisq and delta chisq = +/- 1.
+    plt.figure(figsize=(7, 5))
     plt.scatter(omega_lambdas, chi_squared, marker = 'x', s = 2, color = 'red')
     plt.xlabel('$Ω_{Λ,0}$')
     plt.ylabel('$χ^2$')
     plt.axvline(x = omega_lambda, color = 'black', linestyle = 'dashed')
     plt.axvline(x = omega_lambda + errors[0], color = 'grey', linestyle = 'dotted'); plt.axvline(x = omega_lambda + errors[1], color = 'grey', linestyle = 'dotted')
-    plt.annotate('$Ω_{Λ,0}$' + f'= {omega_lambda} +/- {omega_lambda_err}', xycoords = 'axes fraction', xy = (0.05, 0.9), backgroundcolor = 'white')
+    plt.annotate('$χ^2_{min}$' + f'= {np.round(min_chisq, 2)}' + '\n' 
+                 + f'DoF = {len(x)-1}' + '\n'
+                 + '$χ^2_{red}$' + f'= {np.round(min_chisq/(len(x)-1), 2)}'  + '\n'
+                 + '$Ω_{Λ,0}$' + f'= {omega_lambda} +/- {omega_lambda_err}',
+                   xycoords = 'axes fraction', xy = (0.04, 0.05))
     plt.show()
 
     #best fit value and error returned.
@@ -312,14 +326,14 @@ def find_omega_lambda_and_error(x, actual, error, L_peak, H_0, m_0):
 
 
 
-def get_transverse_comoving_distance(redshift, H_0, omega_lambda0, omega_M0):
+def get_transverse_comoving_distance(redshift, H_0, omega_lambda0, omega_M0, w_model = -1, w_0 = -1, w_a = 1):
     #the following try/except statement allows the function to deal with either an array of redshift values or a single redshift value being passed to it without throwing up an error.
     try:
         #calculates comoving distance for an array of redshift values.
-        r_c = integrate_array(comoving_distance_integrand, np.zeros(len(redshift.tolist())), redshift, args=(H_0, omega_lambda0, omega_M0))
+        r_c = integrate_array(comoving_distance_integrand, np.zeros(len(redshift.tolist())), redshift, args=(H_0, omega_lambda0, omega_M0, w_model, w_0, w_a))
     except:
         #calculates comoving distance for a single redshift value.
-        r_c = integrate_array(comoving_distance_integrand, [0], [redshift], args=(H_0, omega_lambda0, omega_M0))
+        r_c = integrate_array(comoving_distance_integrand, [0], [redshift], args=(H_0, omega_lambda0, omega_M0, w_model, w_0, w_a))
     #determining whether k = -1, 0, or 1.
     k = np.sign(omega_lambda0+omega_M0-1)
 
