@@ -234,7 +234,9 @@ def comoving_distance_integrand(z, H_0, omega_lambda0, omega_M0, w_model = -1, w
     if w_model == 'linear':
         return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0+w_a*z)))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
     if w_model == 'logarithmic':
-        return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0+w_a*np.log(1+z))))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
+        return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0))*np.exp(3/2*w_a*(np.log(1+z))**2))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
+    if w_model == 'p=2':
+        return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0))*np.exp(3/2*w_a*(z/(1+z))**2))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
     else:
         return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_model)))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
 
