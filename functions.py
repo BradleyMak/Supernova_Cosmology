@@ -5,6 +5,7 @@ import scipy
 import scipy.stats as stats
 import math
 import matplotlib.ticker as ticker
+import random
 
 #constants
 c = 299792458 #m/s
@@ -76,7 +77,7 @@ def chisq(model_params, model_funct, x_data, y_data, y_err):
 #a function to carry out an automated chi-squared fitting - fits a given model function with unknown parameters to a given dataset
 #by varying the unknown parameters in such a way as to minimise the chi-squared statistic.
 #The value of the unknown parameters and their errors, as well as a plot showing the raw data, best fit line, and the normalised residuals and their distribution is also returned.
-def automated_curve_fitting(xval, yval, yerr, model_funct, initial, xlabel, ylabel, contour_plot = False, parameter_labels = ['1', '2']):
+def automated_curve_fitting(xval, yval, yerr, model_funct, initial, xlabel = 'x', ylabel = 'y', plot = True, contour_plot = False, parameter_labels = ['1', '2'], parameter_range = [0.25, 0.25]):
     #order arrays in ascending order
     order = np.argsort(xval)
     xval = xval[order]; yval = yval[order]; yerr = yerr[order]
@@ -86,91 +87,100 @@ def automated_curve_fitting(xval, yval, yerr, model_funct, initial, xlabel, ylab
     print('DoF = {}'.format(deg_freedom))
 
     #fits model function to dataset by varying unknown parameters. Returns both the best fit values, and a covariance matrix which is used to calculate the errors on these parameters.
-    popt, cov = scipy.optimize.curve_fit(model_funct, # function to fit
+    popt, cov, infodict, errmsg, ier = scipy.optimize.curve_fit(model_funct, # function to fit
                                         xval, # x data
                                         yval, # y data
                                         sigma=yerr, # set yerr as the array of error bars for the fit
                                         absolute_sigma=True, # errors bars DO represent 1 std error
                                         p0=initial, # starting point for fit
-                                        check_finite=True) # raise ValueError if NaN encountered (don't allow errors to pass)
+                                        check_finite=True,
+                                        full_output = True) # raise ValueError if NaN encountered (don't allow errors to pass)
 
     print('Optimised parameters = ', popt, '\n')
     print('Covariance matrix = \n', cov)
+    diagonal_elements = np.sqrt(np.diag(cov))
+    correlation_matrix = cov / np.outer(diagonal_elements, diagonal_elements)
+    print("Correlation coefficient matrix:")
+    print(correlation_matrix)
+    print(infodict['nfev'])
 
-    #plots the model function for both the initial parameters, and the optimised parameters after fitting.
-    plt.figure()
-    plt.errorbar(xval, yval, yerr=yerr, marker='o', linestyle='None', capsize = 3, color = 'black')
+    if plot == True:
+        
 
-    # Generate best fit line using model function and best fit parameters, and add to plot. 
-    plt.plot(xval, 
-                model_funct(xval, *popt),  # NOTE that now we need to 'unpack' our optimised parameters with '*'.
-                'k', label='optimised', color = 'red')
+        #plots the model function for both the initial parameters, and the optimised parameters after fitting.
+        plt.figure()
+        plt.errorbar(xval, yval, yerr=yerr, marker='o', linestyle='None', capsize = 3, color = 'black')
 
-    # We can also plot a calculation based on our initial conditions to ensure that something has actually happened!
-    plt.plot(xval, 
-                model_funct(xval, *initial), # We need to 'unpack' our initial parameters with '*'.
-                'r', label='initial', color = 'black')
-    plt.legend()
-    plt.show()
+        # Generate best fit line using model function and best fit parameters, and add to plot. 
+        plt.plot(xval, 
+                    model_funct(xval, *popt),  # NOTE that now we need to 'unpack' our optimised parameters with '*'.
+                    'k', label='optimised', color = 'red')
 
-    #to solve indexing errors
-    popt = popt.tolist()
+        # We can also plot a calculation based on our initial conditions to ensure that something has actually happened!
+        plt.plot(xval, 
+                    model_funct(xval, *initial), # We need to 'unpack' our initial parameters with '*'.
+                    'r', label='initial', color = 'black')
+        plt.legend()
+        plt.show()
 
-    #calculates chi-sq statistics
-    norm_residuals = get_norm_residuals(popt, model_funct, xval, yval, yerr)
-    chisq_min = np.sum(chisq(popt, model_funct, xval, yval, yerr))
-    print('chi^2_min = {}'.format(chisq_min))
-    chisq_reduced = chisq_min/deg_freedom
-    print('reduced chi^2 = {}'.format(chisq_reduced))
-    P = scipy.stats.chi2.sf(chisq_min, deg_freedom)
-    print('$P(chi^2_min, DoF)$ = {}'.format(P))
+        #to solve indexing errors
+        popt = popt.tolist()
 
-    #plotting final graph with data overlaid by best-fit curve, with normalised residuals and their probability density subplots.
-    plt.figure(1)
-    plt.figure(1).add_axes((0,0,0.8,0.8))
-    plt.errorbar(xval, yval, yerr=yerr, marker='o', linestyle='None', color = 'black', capsize = 3)
-    smooth_xval = np.linspace(xval[0], xval[-1], 1001)
-    plt.plot(smooth_xval, model_funct(smooth_xval, *popt), color = 'red')
-    plt.annotate('$χ^2_{min}$' + f'= {np.round(chisq_min, 2)}' + '\n' 
-                 + f'DoF = {deg_freedom}' + '\n'
-                 + '$χ^2_{red}$' + f'= {np.round(chisq_reduced, 2)}' ,
-#                 + f'P = {np.round(P, 3)}', 
-                 xycoords = 'axes fraction', xy = (0.04, 0.75), backgroundcolor = 'white')
-    plt.ylabel(ylabel, weight = 'bold')
-    #plt.ylim(14.1, 19.7)
-    plt.gca().set_xticks([])
+        #calculates chi-sq statistics
+        norm_residuals = get_norm_residuals(popt, model_funct, xval, yval, yerr)
+        chisq_min = np.sum(chisq(popt, model_funct, xval, yval, yerr))
+        print('chi^2_min = {}'.format(chisq_min))
+        chisq_reduced = chisq_min/deg_freedom
+        print('reduced chi^2 = {}'.format(chisq_reduced))
+        P = scipy.stats.chi2.sf(chisq_min, deg_freedom)
+        print('$P(chi^2_min, DoF)$ = {}'.format(P))
 
-    #normalised residual plot
-    plt.figure(1).add_axes((0,-0.25,0.8,0.25))
-    plt.scatter(xval, norm_residuals, color='red', marker = 'd')
-    plt.ylabel("""Normalised
+        #plotting final graph with data overlaid by best-fit curve, with normalised residuals and their probability density subplots.
+        plt.figure(1)
+        plt.figure(1).add_axes((0,0,0.8,0.8))
+        plt.errorbar(xval, yval, yerr=yerr, marker='o', linestyle='None', color = 'black', capsize = 3)
+        smooth_xval = np.linspace(xval[0], xval[-1], 1001)
+        plt.plot(smooth_xval, model_funct(smooth_xval, *popt), color = 'red')
+        plt.annotate('$χ^2_{min}$' + f'= {np.round(chisq_min, 2)}' + '\n' 
+                    + f'DoF = {deg_freedom}' + '\n'
+                    + '$χ^2_{red}$' + f'= {np.round(chisq_reduced, 2)}' ,
+    #                 + f'P = {np.round(P, 3)}', 
+                    xycoords = 'axes fraction', xy = (0.04, 0.75), backgroundcolor = 'white')
+        plt.ylabel(ylabel, weight = 'bold')
+        #plt.ylim(14.1, 19.7)
+        plt.gca().set_xticks([])
+
+        #normalised residual plot
+        plt.figure(1).add_axes((0,-0.25,0.8,0.25))
+        plt.scatter(xval, norm_residuals, color='red', marker = 'd')
+        plt.ylabel("""Normalised
 Residuals""", weight = 'bold')
-    plt.ylim(-3, 3)
-    plt.axhline(y = 0, linestyle = '--', color = 'black')
-    plt.axhline(y = 1, linestyle = ':', color = 'dimgrey'); plt.axhline(y = -1, linestyle = ':', color = 'dimgrey')
-    plt.axhline(y = 2, linestyle = ':', color = 'lightgrey'); plt.axhline(y = -2, linestyle = ':', color = 'lightgrey')
-    plt.xlabel(xlabel, weight = 'bold')
+        plt.ylim(-3, 3)
+        plt.axhline(y = 0, linestyle = '--', color = 'black')
+        plt.axhline(y = 1, linestyle = ':', color = 'dimgrey'); plt.axhline(y = -1, linestyle = ':', color = 'dimgrey')
+        plt.axhline(y = 2, linestyle = ':', color = 'lightgrey'); plt.axhline(y = -2, linestyle = ':', color = 'lightgrey')
+        plt.xlabel(xlabel, weight = 'bold')
 
-    #normalised residual distribution histogram.
-    plt.figure(1).add_axes((0.8,-0.25,0.15,0.25))
-    plt.hist(norm_residuals, bins=np.arange(-100, 100, 0.5), alpha = 0.5, density = True, orientation = 'horizontal')
-    plt.ylim(3, -3)
-    plt.xticks([0.2,0.4], fontsize = 16)
-    mu = 0; variance = 1
-    sigma = math.sqrt(variance)
-    y = np.linspace(mu - 3*sigma, mu + 3*sigma, 100)
-    plt.plot(stats.norm.pdf(y, mu, sigma), y, color = 'blue')
-    plt.xlabel("""Probability
+        #normalised residual distribution histogram.
+        plt.figure(1).add_axes((0.8,-0.25,0.15,0.25))
+        plt.hist(norm_residuals, bins=np.arange(-100, 100, 0.5), alpha = 0.5, density = True, orientation = 'horizontal')
+        plt.ylim(3, -3)
+        plt.xticks([0.2,0.4], fontsize = 16)
+        mu = 0; variance = 1
+        sigma = math.sqrt(variance)
+        y = np.linspace(mu - 3*sigma, mu + 3*sigma, 100)
+        plt.plot(stats.norm.pdf(y, mu, sigma), y, color = 'blue')
+        plt.xlabel("""Probability
 Density""", fontsize = 14, weight = 'bold')
-    plt.gca().set_yticks([])
-    plt.gca().invert_yaxis()
+        plt.gca().set_yticks([])
+        plt.gca().invert_yaxis()
 
-    plt.show()
+        plt.show()
 
     #produce chisq contour plot - only do this if we are fitting 2 parameters (2D plot).
     if contour_plot == True and len(initial) == 2:
         #upper and lower limits for contour plot
-        a_low, a_high = popt[0]-0.25, popt[0]+0.25
+        a_low, a_high = popt[0]-parameter_range[0], popt[0]+parameter_range[0]
         b_low, b_high = popt[1]-0.25, popt[1]+0.25
 
         # Generate grid and data
@@ -207,6 +217,15 @@ Density""", fontsize = 14, weight = 'bold')
         plt.plot((a_low, popt[0]), (popt[1], popt[1]), linestyle='--', color='r')
         plt.show()
 
+        contours = C_im.collections[0].get_paths()    # Get hold of the contours from the plot
+        onesigma_contour = contours[0].vertices       # Grab the set of points constituting the one confidence 
+                                                    # interval contour
+        maxs = np.amax(onesigma_contour, axis=0)   # Get the extrema along the two axes - max and min values
+        mins = np.amin(onesigma_contour, axis=0)
+        errs = [[popt-mins], [maxs-popt]]                       # Calculate one standard error in the parameters
+
+        print(errs) 
+
     #calculates errors on parameters by diagonalising the covariance matrix and square rooting the disgonal elements. These square rooted diagonal elements are the errors on the best fit parameters.
     #NOTE: this covariance matrix takes any correlation between parameter errors into account.
     popt_errs = np.sqrt(np.diag(cov))
@@ -230,14 +249,17 @@ def mag_model(redshift, L_peak, H_0, m_0, omega_lambda0, omega_M0):
 #the integrand in the comoving distance integral.
 def comoving_distance_integrand(z, H_0, omega_lambda0, omega_M0, w_model = -1, w_0 = -1, w_a = 1):
     if w_model == 'asymptotic':
+        """if math.isnan((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0+w_a))*np.exp(-3*w_a*z/(1+z)))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5) == True:
+            print(omega_lambda0, w_0, w_a)
+            return 0"""
         return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0+w_a))*np.exp(-3*w_a*z/(1+z)))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
     if w_model == 'linear':
-        return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0+w_a*z)))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
+        return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0-w_a))*np.exp(3*w_a*z))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
     if w_model == 'logarithmic':
         return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0))*np.exp(3/2*w_a*(np.log(1+z))**2))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
     if w_model == 'p=2':
         return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_0))*np.exp(3/2*w_a*(z/(1+z))**2))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
-    else:
+    else: #for constant w
         return ((c)/(H_0**2*(omega_M0*(1+z)**3+omega_lambda0*(1/(1+z))**(-3*(1+w_model)))-(1+z)**2*H_0**2*(omega_lambda0+omega_M0-1))**0.5)
 
 
@@ -245,9 +267,12 @@ def comoving_distance_integrand(z, H_0, omega_lambda0, omega_M0, w_model = -1, w
 #integrates a function for an array of limits using the scipy.integrate.quad method.
 def integrate_array(function, lower_limit_array, upper_limit_array, args):
     output = []
+    #print(upper_limit_array)
     assert len(lower_limit_array) == len(upper_limit_array)
     for i in range(0, len(upper_limit_array)):
+        #print(lower_limit_array[i], upper_limit_array[i])
         output.append(scipy.integrate.quad(function, lower_limit_array[i], upper_limit_array[i], args = args)[0])
+        #print(scipy.integrate.quad(function, lower_limit_array[i], upper_limit_array[i], args = args))
     return np.array(output)
 
 
@@ -350,3 +375,97 @@ def get_transverse_comoving_distance(redshift, H_0, omega_lambda0, omega_M0, w_m
         return R_0*np.sinh(r_c/R_0)
     
 
+
+def MCMC(xdata, ydata, yerr, model_func, initial_pos, dimensions = 2, no_steps=10000, burn_in_step_size = 0.01, post_burn_in_step_size = 0.01, burn_in = 1000, parameter_labels = ['a', 'b', 'c']):
+    #checks length of initial position array matches the number of dimensions.
+    assert len(initial_pos) == dimensions
+    #Generalised for n dimensions (default 2).
+    #calculates chisq value of initial position and adds it to the chisq list.
+    chisq_list = [np.sum(chisq(initial_pos, model_func, xdata, ydata, yerr))]
+    #initiates history array to store each coordinate the random walker passes through in the simulation.
+    history = [initial_pos]
+    for i in range(0, no_steps):
+        #setting step size depending on whether we are during burn in or post burn in.
+        if i < burn_in:
+            step_size = burn_in_step_size
+        else:
+            step_size = post_burn_in_step_size
+        #initiates random walker object at the initial position
+        w = walker(initial_pos, ndim = dimensions, step_size=step_size)
+        #does 1 random step and saves this new position as a variable new_pos.
+        pos_test = w.doSteps(1)
+        new_pos = np.round(pos_test[1], 7)
+        #calculates the chisq value of this new position and adds it to the chisq list.
+        #The rounding is to remove floating point error.
+        chisq_list.append(np.sum(chisq(new_pos, model_func, xdata, ydata, yerr)))
+        #if the move reduced the chisq value, accept the move and add the new coordinate to the history
+        # and set it as the new initial position for the next random step.
+        if chisq_list[i+1] < chisq_list[i]:
+            history.append(new_pos)
+            initial_pos = new_pos
+        #otherwise, accept the move with some probability.
+        else:
+            probability = np.exp(-(chisq_list[i+1]-chisq_list[i])/2)
+            n = random.random() #produces a random float between 0 and 1.
+            if n <= probability:
+                history.append(new_pos)
+                initial_pos = new_pos
+    
+    #plotting in 2 dimensions
+    if dimensions == 2:
+        #plot of the 2 parameters against number of steps.
+        plt.figure(1)
+        plt.plot(history)
+        plt.xlabel('Step number'); plt.ylabel('Parameter values')
+        #plot of how the algorithm moves through the 2D parameter space.
+        plt.figure(2)
+        plt.plot(np.array(history)[:, 0], np.array(history)[:, 1])
+        plt.ylabel(parameter_labels[1]); plt.xlabel(parameter_labels[0])
+
+    """#plotting in 3 dimensions
+    if dimensions == 3:
+        ax = plt.axes(projection='3d')
+        ax.plot(np.array(history)[:, 0], np.array(history)[:, 1], np.array(history)[:, 2])
+        ax.set_zlabel(parameter_labels[2]); ax.set_ylabel(parameter_labels[1]); ax.set_xlabel(parameter_labels[0])"""
+
+    #returns final position
+    return (history[-1])
+
+
+
+#random walker class
+class walker:
+    #initialisation method
+    def __init__(self,x0,ndim=1, step_size=1.0):
+        self.pos=x0
+        self.ndim=ndim
+        self.possibleSteps=[]
+        for i in range(ndim):
+            step=np.zeros(ndim)
+            step[i]= - step_size
+            self.possibleSteps.append(np.array(step,dtype='f'))
+            step[i]= + step_size
+            self.possibleSteps.append(step.copy())
+        self.npossible=len(self.possibleSteps)
+
+    #method to randomly pick a step of given size in n dimensions.
+    def pickStep(self):
+        istep = np.random.choice(range(self.npossible))
+        return self.possibleSteps[istep]
+    
+    #method to do a given number of random steps.
+    def doSteps(self,n):
+        positions=np.ndarray((n+1,self.ndim),dtype='f')
+        positions[0] = self.pos
+        for i in range(0,n):
+            positions[i+1] = positions[i]+self.pickStep()
+        return np.array(positions, dtype=np.float64)
+    
+
+def jackknifing(xval, yval, yerr, model_funct, initial):
+    runs = []
+    parameters = automated_curve_fitting(xval, yval, yerr, model_funct, initial,
+                                                plot = False) #optimised parameters given in erg/s/Ang
+    runs.append(parameters[0])
+    return np.std(runs, axis = 0)
+    
